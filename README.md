@@ -6,59 +6,64 @@ colorTo: green
 sdk: docker
 app_port: 8501
 pinned: false
+short_description: RAG chatbot with document Q&A and code execution
 ---
 
-# Chatbot RAG con Agente y Ejecución de Código 🚀
+# RAG Chatbot with Agent and Code Execution
 
-![CI](https://github.com/JoseAndresLopezMu/chatbot-rag-streamlit/actions/workflows/ci.yml/badge.svg)
-![Python](https://img.shields.io/badge/python-3.10-blue)
-![Streamlit](https://img.shields.io/badge/streamlit-1.46+-red)
-![LangChain](https://img.shields.io/badge/langchain-0.3+-yellow)
+A conversational AI assistant that combines **Retrieval-Augmented Generation (RAG)** with an autonomous agent capable of executing Python code. Upload your documents and ask questions about them — the chatbot retrieves the most relevant passages and generates precise, grounded answers. When calculations are needed, it writes and runs code automatically.
 
-Este proyecto implementa un chatbot avanzado que utiliza un modelo de lenguaje (LLM) a través de **Ollama**. El chatbot es capaz de responder preguntas basándose en una colección de documentos PDF (técnica RAG), mantener el contexto de la conversación, ejecutar código Python y extraer información estructurada de formularios.
+## What it does
 
----
+The application indexes your uploaded documents into a vector store and uses semantic search to find the most relevant chunks before generating each response. This means answers are always grounded in your actual documents rather than relying on the model's training data alone. The integrated Python executor lets the assistant go beyond text — it can compute statistics, generate plots, or run any analysis your documents require.
 
-## ✨ Características Principales
+**Key capabilities:**
+- Upload PDF, TXT, or Markdown documents and ask questions about their content
+- Semantic search over document embeddings for accurate retrieval
+- Grounded answers with source citations so you know where each fact comes from
+- Python code execution for data analysis and calculations
+- Conversation memory — the assistant remembers context across multiple turns
 
-* **Retrieval-Augmented Generation (RAG)**: Indexa documentos PDF en una base de datos vectorial (ChromaDB) para responder preguntas basadas en su contenido.
-* **Agente con Herramientas (Agent with Tools)**: Utiliza un agente de LangChain que puede decidir de forma autónoma si necesita:
-    * Buscar en los documentos (`search_documents`).
-    * Ejecutar código Python para cálculos o lógica (`execute_python_code`).
-    * Consultar datos extraídos de un formulario (`get_extracted_form_data`).
-* **OCR para Imágenes**: Extrae texto de las imágenes contenidas en los PDF durante la indexación para enriquecer el contexto.
-* **Memoria Dinámica**: Mantiene un historial de la conversación y lo resume automáticamente para no exceder el límite de tokens del LLM.
-* **Interfaz Interactiva**: Construido con **Streamlit** para una experiencia de chat amigable.
+## Tech stack
 
----
+| Layer | Technology |
+|---|---|
+| UI | Streamlit |
+| LLM | Groq · LLaMA 3.3 70B |
+| Embeddings | HuggingFace sentence-transformers |
+| Vector store | FAISS |
+| Agent framework | LangChain |
+| Containerization | Docker |
 
-## 🔧 Requisitos Previos
+## How to use
 
-Antes de empezar, asegúrate de tener instalado el siguiente software en tu sistema:
+1. Upload one or more documents (PDF, TXT, MD) from the sidebar.
+2. Wait for the indexing step to complete — the app will confirm when it's ready.
+3. Type your question in the chat box. The assistant will retrieve relevant passages and generate an answer.
+4. Source chunks used for each answer are shown in an expandable section below the response.
 
-1.  **Python**: Versión 3.10 o superior.
-2.  **Ollama**: La aplicación de Ollama debe estar [instalada y en ejecución](https://ollama.com/). Es la responsable de servir los modelos de lenguaje localmente.
+## Architecture
 
----
-
-## ⚙️ Configuración e Instalación
-
-Sigue estos pasos para configurar el proyecto en tu máquina local.
-
-### Crear y Activar un Entorno Virtual
-# Descargar el git
-Descargar el código del git.
-
-# Crear el entorno
-uv sync
-
-## Descargar modelo de Ollama
-# Descargar el modelo de embeddings
-ollama pull nomic-embed-text
-
-# Descargar el modelo de lenguaje (ej. gemma3:4b o el que prefieras)
-ollama pull gemma3:4b
-
-## Ejecutar proyecto
-1. uv run index.py (creación del index para ponerlo en app.py)
-2. uv run python -m streamlit run app.py
+```
+Document Upload
+    │
+    ▼
+Text chunking + embedding (sentence-transformers)
+    │
+    ▼
+FAISS vector store
+    │
+    ▼
+User query ──► semantic search ──► top-k chunks
+                                        │
+                                        ▼
+                              LLM (LLaMA 3.3 70B)
+                                        │
+                              ┌─────────┴──────────┐
+                              │                    │
+                         text answer          python_repl
+                              │                    │
+                              └─────────┬──────────┘
+                                        ▼
+                               Final answer + sources
+```
