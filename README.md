@@ -3,67 +3,88 @@ title: Chatbot RAG
 emoji: 💬
 colorFrom: blue
 colorTo: green
-sdk: docker
-app_port: 8501
+sdk: static
 pinned: false
-short_description: RAG chatbot with document Q&A and code execution
+short_description: RAG chatbot con recuperacion hibrida y agente
 ---
 
-# RAG Chatbot with Agent and Code Execution
+# 💬 Chatbot RAG — recuperación híbrida + agente
 
-A conversational AI assistant that combines **Retrieval-Augmented Generation (RAG)** with an autonomous agent capable of executing Python code. Upload your documents and ask questions about them — the chatbot retrieves the most relevant passages and generates precise, grounded answers. When calculations are needed, it writes and runs code automatically.
+Asistente conversacional que combina **RAG (Retrieval-Augmented Generation)** con
+recuperación **híbrida** (semántica + léxica) y un agente que decide entre responder
+con los documentos o resolver un cálculo. Sube documentos (PDF/DOCX/TXT/MD) y
+pregunta sobre su contenido — las respuestas siempre citan la fuente.
 
-## What it does
+## Arquitectura
 
-The application indexes your uploaded documents into a vector store and uses semantic search to find the most relevant chunks before generating each response. This means answers are always grounded in your actual documents rather than relying on the model's training data alone. The integrated Python executor lets the assistant go beyond text — it can compute statistics, generate plots, or run any analysis your documents require.
+Esta página (Hugging Face) sirve solo el **frontend estático** (React compilado).
+La lógica real —base de datos, embeddings, reranking, LLM— corre en **Vercel**
+(funciones serverless Node.js) y **Supabase** (Postgres + pgvector), porque
+Hugging Face ya no permite backends con cómputo real en el nivel gratuito.
 
-**Key capabilities:**
-- Upload PDF, TXT, or Markdown documents and ask questions about their content
-- Semantic search over document embeddings for accurate retrieval
-- Grounded answers with source citations so you know where each fact comes from
-- Python code execution for data analysis and calculations
-- Conversation memory — the assistant remembers context across multiple turns
-
-## Tech stack
-
-| Layer | Technology |
+| Capa | Tecnología |
 |---|---|
-| UI | Streamlit |
-| LLM | Groq · LLaMA 3.3 70B |
-| Embeddings | HuggingFace sentence-transformers |
-| Vector store | FAISS |
-| Agent framework | LangChain |
-| Containerization | Docker |
+| Frontend | React + Vite |
+| Backend | Node.js (funciones serverless en Vercel) |
+| Orquestación / agente | LangChain.js |
+| LLM | Groq · Llama 3.3 70B |
+| Base de datos vectorial | Postgres + `pgvector` (Supabase) |
+| Búsqueda léxica | `tsvector`/`ts_rank` nativo de Postgres (equivalente a BM25) |
+| Fusión de resultados | Reciprocal Rank Fusion (RRF), calculada en SQL |
+| Reranking | Cross-encoder (`Xenova/ms-marco-MiniLM-L-6-v2`, vía `@huggingface/transformers`) |
+| Diversidad final | MMR (Maximal Marginal Relevance) |
+| Embeddings | `Xenova/all-MiniLM-L6-v2` (384 dims) |
+| Conversión de documentos | Microservicio propio DOCX/PDF → Markdown (`mammoth` + `pdf-parse`), expuesto como API REST |
 
-## How to use
+## Pipeline de recuperación
 
-1. Upload one or more documents (PDF, TXT, MD) from the sidebar.
-2. Wait for the indexing step to complete — the app will confirm when it's ready.
-3. Type your question in the chat box. The assistant will retrieve relevant passages and generate an answer.
-4. Source chunks used for each answer are shown in an expandable section below the response.
+1. **BM25 léxico** (`tsvector` español) + **semántico** (`pgvector`, coseno) —
+   cada uno se ejecuta como una consulta SQL independiente.
+2. **Fusión RRF**: se combinan ambos rankings con Reciprocal Rank Fusion, en una
+   sola función SQL (`hybrid_search`, ver `db/schema.sql`).
+3. **Cross-encoder reranking**: los candidatos fusionados se reordenan por
+   relevancia real (query, documento) con un modelo cross-encoder.
+4. **MMR**: selección final diversificada, evitando pasar al LLM varios
+   fragmentos casi idénticos.
 
-## Architecture
+## Agente
+
+Un router (LLM) clasifica cada pregunta como `calculo` o `rag`:
+- `calculo`: el LLM genera una expresión matemática, evaluada de forma segura
+  con `mathjs` (sin ejecutar código arbitrario).
+- `rag`: reformula la pregunta con el historial de conversación (para
+  preguntas de seguimiento), recupera contexto con el pipeline de arriba, y
+  genera una respuesta **solo** basada en ese contexto, citando fuente y página.
+
+## Ejecutar en local
+
+```bash
+npm install
+cp .env.example .env   # rellena DATABASE_URL y GROQ_API_KEY
+npm run seed           # indexa los documentos de documents/ en Supabase
+npm run dev:api        # backend (puerto 8787)
+npm run dev:web        # frontend (puerto 5173, con proxy a /api)
+```
+
+## Estructura
 
 ```
-Document Upload
-    │
-    ▼
-Text chunking + embedding (sentence-transformers)
-    │
-    ▼
-FAISS vector store
-    │
-    ▼
-User query ──► semantic search ──► top-k chunks
-                                        │
-                                        ▼
-                              LLM (LLaMA 3.3 70B)
-                                        │
-                              ┌─────────┴──────────┐
-                              │                    │
-                         text answer          python_repl
-                              │                    │
-                              └─────────┬──────────┘
-                                        ▼
-                               Final answer + sources
+api/                 Funciones serverless (Vercel): chat, search, convert, ingest
+lib/                 Modulos compartidos: db, embeddings, reranker, mmr, chunker,
+                     conversion de documentos, retrieval hibrido, agente LangChain.js
+db/schema.sql        Esquema Postgres/pgvector + funcion hybrid_search (RRF)
+scripts/seed.mjs      Ingesta inicial de documents/ en Supabase
+src/                  Frontend React
+documents/            Corpus de ejemplo (PDFs)
+server.dev.mjs        Servidor Express para desarrollo local (envuelve api/*.js)
+vercel.json           Configuracion de despliegue en Vercel
 ```
+
+## Despliegue
+
+- **Vercel**: aloja `api/*.js` (backend Node) — variables de entorno `DATABASE_URL`
+  y `GROQ_API_KEY`.
+- **Supabase**: Postgres + `pgvector`, conexión vía "Transaction pooler" (recomendado
+  para funciones serverless).
+- **Hugging Face** (esta página): solo el frontend estático, compilado con
+  `VITE_API_BASE_URL` apuntando a la URL de Vercel.
