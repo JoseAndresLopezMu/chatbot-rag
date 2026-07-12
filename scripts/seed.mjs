@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { convertToMarkdown } from "../lib/convertDoc.mjs";
 import { chunkText } from "../lib/chunker.mjs";
-import { embedBatch } from "../lib/embeddings.mjs";
+import { embedPassages } from "../lib/embeddings.mjs";
 import { getPool } from "../lib/db.mjs";
 
 // Red de seguridad: algunas versiones de pdf-parse/pdf.js generan rechazos de
@@ -56,7 +56,7 @@ async function main() {
       continue;
     }
 
-    const vectors = await embedBatch(allChunks.map((c) => c.content));
+    const vectors = await embedPassages(allChunks.map((c) => c.content));
 
     for (let i = 0; i < allChunks.length; i++) {
       const vectorLiteral = `[${vectors[i].join(",")}]`;

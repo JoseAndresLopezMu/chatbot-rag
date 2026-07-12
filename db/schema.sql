@@ -8,6 +8,7 @@ create table if not exists documents (
   created_at timestamptz not null default now()
 );
 
+-- 384 dims: dimension de all-MiniLM-L6-v2 (ver lib/embeddings.mjs).
 create table if not exists chunks (
   id uuid primary key default gen_random_uuid(),
   document_id uuid not null references documents(id) on delete cascade,

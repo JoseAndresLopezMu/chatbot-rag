@@ -8,12 +8,16 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const { input, history } = req.body;
+    const { input, history, sessionChunks } = req.body;
     if (!input || typeof input !== "string") {
       res.status(400).json({ error: "Falta el campo 'input' (string)" });
       return;
     }
-    const result = await runChat({ input, history: Array.isArray(history) ? history : [] });
+    const result = await runChat({
+      input,
+      history: Array.isArray(history) ? history : [],
+      sessionChunks: Array.isArray(sessionChunks) ? sessionChunks : [],
+    });
     res.status(200).json(result);
   } catch (err) {
     console.error(err);

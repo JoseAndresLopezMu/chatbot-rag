@@ -31,7 +31,8 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
+  const [sessionDoc, setSessionDoc] = useState(null); // { fileName, chunks }
   const fileInputRef = useRef(null);
 
   async function sendMessage(e) {
@@ -48,7 +49,11 @@ export default function App() {
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text, history }),
+        body: JSON.stringify({
+          input: text,
+          history,
+          sessionChunks: sessionDoc ? sessionDoc.chunks : [],
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -70,20 +75,27 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    setUploadStatus(null);
+    setUploadError(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API_BASE}/ingest`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/process-document`, { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setUploadStatus(`✅ "${data.fileName}" indexado (${data.chunkCount} fragmentos).`);
+      setSessionDoc({ fileName: data.fileName, chunks: data.chunks });
+      setMessages([]);
     } catch (err) {
-      setUploadStatus(`❌ ${err.message}`);
+      setUploadError(err.message);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  function clearSessionDoc() {
+    setSessionDoc(null);
+    setMessages([]);
+    setUploadError(null);
   }
 
   return (
@@ -94,24 +106,40 @@ export default function App() {
       </header>
 
       <div className="app__upload">
-        <label className="upload-btn">
-          {uploading ? "Subiendo…" : "📤 Subir documento (PDF/DOCX/TXT/MD)"}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.docx,.md,.txt"
-            onChange={handleUpload}
-            disabled={uploading}
-            hidden
-          />
-        </label>
-        {uploadStatus && <span className="upload-status">{uploadStatus}</span>}
+        {sessionDoc ? (
+          <>
+            <span className="upload-status">
+              📄 Usando solo: <b>{sessionDoc.fileName}</b> ({sessionDoc.chunks.length} fragmentos)
+            </span>
+            <button type="button" className="upload-btn" onClick={clearSessionDoc}>
+              ✕ Volver al corpus por defecto
+            </button>
+          </>
+        ) : (
+          <>
+            <label className="upload-btn">
+              {uploading ? "Procesando…" : "📤 Subir documento (PDF/DOCX/TXT/MD)"}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.md,.txt"
+                onChange={handleUpload}
+                disabled={uploading}
+                hidden
+              />
+            </label>
+            <span className="upload-status">usando el corpus de licitación por defecto</span>
+          </>
+        )}
+        {uploadError && <span className="upload-status">❌ {uploadError}</span>}
       </div>
 
       <div className="app__messages">
         {messages.length === 0 && (
           <p className="empty-hint">
-            Pregunta algo sobre los documentos indexados, o pide un cálculo matemático.
+            {sessionDoc
+              ? `Pregunta algo sobre "${sessionDoc.fileName}".`
+              : "Pregunta algo sobre el pliego de licitación y las ofertas, o pide un cálculo matemático."}
           </p>
         )}
         {messages.map((m, i) => (

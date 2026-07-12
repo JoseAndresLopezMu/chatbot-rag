@@ -7,7 +7,7 @@ import cors from "cors";
 import chatHandler from "./api/chat.js";
 import searchHandler from "./api/search.js";
 import convertHandler from "./api/convert.js";
-import ingestHandler from "./api/ingest.js";
+import processDocumentHandler from "./api/process-document.js";
 
 const app = express();
 app.use(cors());
@@ -15,7 +15,7 @@ app.use(cors());
 app.post("/api/chat", express.json({ limit: "1mb" }), (req, res) => chatHandler(req, res));
 app.post("/api/search", express.json({ limit: "1mb" }), (req, res) => searchHandler(req, res));
 app.post("/api/convert", (req, res) => convertHandler(req, res));
-app.post("/api/ingest", (req, res) => ingestHandler(req, res));
+app.post("/api/process-document", (req, res) => processDocumentHandler(req, res));
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 

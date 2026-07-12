@@ -15,6 +15,14 @@ recuperación **híbrida** (semántica + léxica) y un agente que decide entre r
 con los documentos o resolver un cálculo. Sube documentos (PDF/DOCX/TXT/MD) y
 pregunta sobre su contenido — las respuestas siempre citan la fuente.
 
+**Caso de uso por defecto — evaluación de ofertas en licitación pública:**
+el corpus incluido es un pliego técnico real (Fundación Madri+d, expediente
+S_2026_003, mantenimiento de CPD/red/VoIP/nube privada) más tres ofertas de
+proveedores (ficticias, para ilustrar la comparación entre precio, SLA y
+cumplimiento normativo). Si subes tu propio documento, el asistente responde
+**solo** con ese documento durante esa sesión (no se guarda, no se mezcla con
+el corpus por defecto).
+
 ## Arquitectura
 
 Esta página (Hugging Face) sirve solo el **frontend estático** (React compilado).
@@ -35,6 +43,15 @@ Hugging Face ya no permite backends con cómputo real en el nivel gratuito.
 | Diversidad final | MMR (Maximal Marginal Relevance) |
 | Embeddings | `Xenova/all-MiniLM-L6-v2` (384 dims) |
 | Conversión de documentos | Microservicio propio DOCX/PDF → Markdown (`mammoth` + `pdf-parse`), expuesto como API REST |
+
+> **Nota sobre idioma:** el modelo de embeddings y el reranker están entrenados
+> sobre todo en inglés (el corpus es en español). Se probaron alternativas
+> multilingües (`bge-m3`, `multilingual-e5-small`, cross-encoders mMARCO), y
+> funcionan mejor en precisión, pero sus pesos (~120MB+ por el tamaño del
+> vocabulario multilingüe) superan el límite de 100MB por fichero de las
+> funciones serverless de Vercel en el plan gratuito. Migrar a esos modelos
+> requeriría servir los embeddings desde una API externa en vez de pesos
+> locales empaquetados.
 
 ## Pipeline de recuperación
 
@@ -69,13 +86,13 @@ npm run dev:web        # frontend (puerto 5173, con proxy a /api)
 ## Estructura
 
 ```
-api/                 Funciones serverless (Vercel): chat, search, convert, ingest
+api/                 Funciones serverless (Vercel): chat, search, convert, process-document
 lib/                 Modulos compartidos: db, embeddings, reranker, mmr, chunker,
                      conversion de documentos, retrieval hibrido, agente LangChain.js
 db/schema.sql        Esquema Postgres/pgvector + funcion hybrid_search (RRF)
 scripts/seed.mjs      Ingesta inicial de documents/ en Supabase
 src/                  Frontend React
-documents/            Corpus de ejemplo (PDFs)
+documents/            Corpus por defecto (pliego real + ofertas de ejemplo)
 server.dev.mjs        Servidor Express para desarrollo local (envuelve api/*.js)
 vercel.json           Configuracion de despliegue en Vercel
 ```
