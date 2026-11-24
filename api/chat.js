@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const { input, history, sessionChunks } = req.body;
+    const { input, history, sessionChunks, include_contexts } = req.body;
     if (!input || typeof input !== "string") {
       res.status(400).json({ error: "Falta el campo 'input' (string)" });
       return;
@@ -17,6 +17,7 @@ export default async function handler(req, res) {
       input,
       history: Array.isArray(history) ? history : [],
       sessionChunks: Array.isArray(sessionChunks) ? sessionChunks : [],
+      includeContexts: include_contexts === true,
     });
     res.status(200).json(result);
   } catch (err) {
