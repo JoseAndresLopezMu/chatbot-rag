@@ -35,7 +35,7 @@ Hugging Face ya no permite backends con cómputo real en el nivel gratuito.
 | Frontend | React + Vite |
 | Backend | Node.js (funciones serverless en Vercel) |
 | Orquestación / agente | LangChain.js |
-| LLM | Groq · Llama 3.3 70B |
+| LLM | Groq · Qwen3.8 27B (`GROQ_MODEL`, configurable) |
 | Base de datos vectorial | Postgres + `pgvector` (Supabase) |
 | Búsqueda léxica | `tsvector`/`ts_rank` nativo de Postgres (equivalente a BM25) |
 | Fusión de resultados | Reciprocal Rank Fusion (RRF), calculada en SQL |
@@ -73,6 +73,11 @@ Un router (LLM) clasifica cada pregunta como `calculo` o `rag`:
   preguntas de seguimiento), recupera contexto con el pipeline de arriba, y
   genera una respuesta **solo** basada en ese contexto, citando fuente y página.
 
+Para evaluación, `POST /api/chat` acepta `"include_contexts": true` y entonces
+devuelve también `contexts`: los fragmentos que se pasaron al LLM, en orden. Lo
+usa [rag-eval](https://github.com/JoseAndresLopezMu/rag-eval) para medir si las
+respuestas son fieles al contexto recuperado. Sin ese campo la respuesta no cambia.
+
 ## Ejecutar en local
 
 ```bash
@@ -99,8 +104,8 @@ vercel.json           Configuracion de despliegue en Vercel
 
 ## Despliegue
 
-- **Vercel**: aloja `api/*.js` (backend Node) — variables de entorno `DATABASE_URL`
-  y `GROQ_API_KEY`.
+- **Vercel**: aloja `api/*.js` (backend Node), desplegado automáticamente desde la
+  rama `main` — variables de entorno `DATABASE_URL`, `GROQ_API_KEY` y `GROQ_MODEL`.
 - **Supabase**: Postgres + `pgvector`, conexión vía "Transaction pooler" (recomendado
   para funciones serverless).
 - **Hugging Face** (esta página): solo el frontend estático, compilado con
